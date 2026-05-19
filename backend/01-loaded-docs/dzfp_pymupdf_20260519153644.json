@@ -1,0 +1,21 @@
+{
+  "filename": "dzfp_26422000001440347026_武汉市洪山区新航道培训学校_20260422131302.pdf",
+  "total_chunks": 1,
+  "total_pages": 1,
+  "loading_method": "pymupdf",
+  "loading_strategy": null,
+  "chunking_strategy": null,
+  "chunking_method": "loaded",
+  "timestamp": "2026-05-19T15:36:44.367655",
+  "chunks": [
+    {
+      "content": "电子发票（普通发票）\n发票号码：\n开票日期：\n购\n买\n方\n信\n息\n统一社会信用代码/纳税人识别号：\n销\n售\n方\n信\n息\n统一社会信用代码/纳税人识别号：\n名称：\n名称：\n项目名称\n规格型号\n单 位\n数 量\n单 价\n金 额\n税率/征收率\n税 额\n合\n计\n价税合计（大写）\n（小写）\n备\n注\n开票人：\n26422000001440347026\n2026年04月22日\n陶大文（个人）\n武汉市洪山区新航道培训学校\n52420111672767677U\n¥16763.11\n¥502.89\n壹万柒仟贰佰陆拾陆圆整\n¥17266.00\n郑佳悦\n*非学历教育服务*培训费\n3%\n16763.11\n502.89\n    \n下载次数：1",
+      "metadata": {
+        "chunk_id": 1,
+        "page_number": 1,
+        "page_range": "1",
+        "word_count": 52
+      }
+    }
+  ]
+}

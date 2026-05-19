@@ -1,0 +1,48 @@
+{
+  "filename": "附件3：学信网采集码查询途径.pdf",
+  "total_chunks": 4,
+  "total_pages": 4,
+  "loading_method": "pymupdf",
+  "loading_strategy": null,
+  "chunking_strategy": null,
+  "chunking_method": "loaded",
+  "timestamp": "2026-05-19T15:39:42.767491",
+  "chunks": [
+    {
+      "content": "附件3：  \n采集码查询途径 \n \n一、学信网学信档案（手机端和电脑端流程一致） \n1.登录学信网学信档案 \n \n2.查看本人学籍信息",
+      "metadata": {
+        "chunk_id": 1,
+        "page_number": 1,
+        "page_range": "1",
+        "word_count": 5
+      }
+    },
+    {
+      "content": "3.选择学籍，查看对应采集码",
+      "metadata": {
+        "chunk_id": 2,
+        "page_number": 2,
+        "page_range": "2",
+        "word_count": 1
+      }
+    },
+    {
+      "content": "二、“学信网”微信公众号 \n1.关注学信网公众号，绑定学信网账号，点击“学信账号”，\n查看学籍学历信息 \n        \n \n2.选择学籍，查看对应采集码",
+      "metadata": {
+        "chunk_id": 3,
+        "page_number": 3,
+        "page_range": "3",
+        "word_count": 4
+      }
+    },
+    {
+      "content": "三、学信网APP \n1.登录学信网APP，点击“学籍查询”，查看学籍学历信息 \n        \n \n2.选择学籍，查看对应采集码",
+      "metadata": {
+        "chunk_id": 4,
+        "page_number": 4,
+        "page_range": "4",
+        "word_count": 3
+      }
+    }
+  ]
+}

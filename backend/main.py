@@ -553,7 +553,8 @@ async def delete_embedded_doc(doc_name: str):
 async def parse_file(
     file: UploadFile = File(...),
     loading_method: str = Form(...),
-    parsing_option: str = Form(...)
+    parsing_option: str = Form(...),
+    parsing_options: str = Form(None)
 ):
     try:
         # Save uploaded file
@@ -578,17 +579,33 @@ async def parse_file(
         page_map = loading_service.get_page_map()
         
         parsing_service = ParsingService()
-        parsed_content = parsing_service.parse_pdf(
-            raw_text, 
-            parsing_option, 
-            metadata,
-            page_map=page_map
-        )
+
+        requested_methods = [parsing_option]
+        if parsing_options:
+            additional_methods = json.loads(parsing_options)
+            if isinstance(additional_methods, list):
+                for method in additional_methods:
+                    if method and method not in requested_methods:
+                        requested_methods.append(method)
+
+        comparison_results = [
+            parsing_service.parse_pdf(
+                raw_text,
+                method,
+                metadata,
+                page_map=page_map
+            )
+            for method in requested_methods
+        ]
         
         # Clean up temp file
         os.remove(temp_path)
         
-        return {"parsed_content": parsed_content}
+        return {
+            "parsed_content": comparison_results[0],
+            "comparison_results": comparison_results,
+            "requested_methods": requested_methods
+        }
     except Exception as e:
         logger.error(f"Error parsing file: {str(e)}")
         raise

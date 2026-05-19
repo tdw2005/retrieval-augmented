@@ -1,0 +1,30 @@
+{
+  "filename": "UOA_ST_HIST.pdf",
+  "total_chunks": 2,
+  "total_pages": 2,
+  "loading_method": "pymupdf",
+  "loading_strategy": null,
+  "chunking_strategy": null,
+  "chunking_method": "loaded",
+  "timestamp": "2026-05-19T15:36:04.593985",
+  "chunks": [
+    {
+      "content": "STATEMENT/INVOICE\nCompliance Services, Operations\nThe University of Auckland\nPrivate Bag 92019, Auckland 1142\nTelephone:+64 9 373 7599, Ext:84422\nEmail: fees@auckland.ac.nz\nDawen Tao\nBuilding 9, Unit 2, Room 1002\nHongxing Jiayuan C2 District, East Gate\nZhucheng 262200\nChina, People's Republic of\nStatement Date: 15 May  2026\nStudent ID: 635866870\nStudent Name: Dawen Tao\nPage: 1\n      UOA_ST_HIST\n -----------------------------------------------------------------------------------------------------------------------------------------\nName:                Dawen Tao       \nStudent ID:         635866870\nStatement Date: 15/05/2026     \nTotal Amount due:\n$24,626.50\nAmount Paid:\n \nItem Description\nDue Date\nCourse\nProgramme\nPoints\nEFTS\nDetails of Payments\nCharges\n2026 Semester Two transactions\nIntnl Health & Travel Cover\n20/07/2026  \n   \n$449.50\nTuition Fee, International\n20/07/2026 COMPSCI 320 BSC\n15.00    0.1250\n$5,902.65\nTuition Fee, International\n20/07/2026 COMPSCI 340 BSC\n15.00    0.1250\n$5,902.65\nTuition Fee, International\n20/07/2026 COMPSCI 399 BSC\n15.00    0.1250\n$5,902.65\nTuition Fee, International\n20/07/2026 COMPSCI 367 BSC\n15.00    0.1250\n$5,902.65\nStudent Services Fee\n20/07/2026 COMPSCI 340 BSC\n   \n$141.60\nStudent Services Fee\n20/07/2026 COMPSCI 320 BSC\n   \n$141.60\nStudent Services Fee\n20/07/2026 COMPSCI 367 BSC\n   \n$141.60\nStudent Services Fee\n20/07/2026 COMPSCI 399 BSC\n   \n$141.60\n                Term Balance\n               $24,626.50\nStatement balance (NZD)\n$24,626.50\nTotal Account balance (NZD)\n$24,626.50\nTerm Totals\nPaid\nDue\n2026 Semester Two summary  \n$0.00 $24,626.50\nYou must pay or make arrangements to pay by the due date(s) shown in the fees schedule above.\nFailure to do so will result in loss of access to services.\nTo pay online, log into Student Services Online at www.student.auckland.ac.nz\nSee next page for alternative methods of payment.",
+      "metadata": {
+        "chunk_id": 1,
+        "page_number": 1,
+        "page_range": "1",
+        "word_count": 236
+      }
+    },
+    {
+      "content": "STATEMENT/INVOICE\nStatement Date: 15 May  2026\nStudent ID: 635866870\nStudent Name: Dawen Tao\nPage: 2\nUOA_ST_HIST\n \nAccepted methods of Payment:\nInformation and instructions about our accepted methods of payment can be found here;\nFee payment methods – University of Auckland\nPayment options include:\n• Online via the Fees and Payments menu of Student Services Online, instructions will be available online to guide you through\n   the process. Here you can pay by:\n•\nInternet banking\n•\nCredit or debit card. Please note that an additional 1.9% convenience fee will be incurred.\n•\nInternational payment through our preferred third-party payment partners and pay in your home currency through CIBC or \nFlywire.\nYou can pay your tuition fees by different methods, including credit card, telegraphic transfer.\n \n●Third party payment - Provide your fees statement/invoice to them before Semester/Term starts so your fees are paid by the due\ndate.\n \n \n●Student Loan - Contact StudyLink (visit www.studylink.govt.nz or call 0800 88 99 00) to find out how to apply for a student loan.\n \n \n●Scholarship - For University of Auckland administered scholarships, payment will be automatically credited to your account\n(usually in the third week of semester/term).\n \n \n●Direct Credit/ Telegraphic Transfer -\nBeneficiary Name: The University of Auckland\nBank Name: ANZ Bank New Zealand Limited\nBank Address: Cnr Queen & Victoria Streets, Auckland, New Zealand\nAccount Number: 01-1839-0818777-01\nSWIFT code: ANZBNZ22\n \n \n▪For payment reference use your Last Name in Reference field and student ID in Code field.",
+      "metadata": {
+        "chunk_id": 2,
+        "page_number": 2,
+        "page_range": "2",
+        "word_count": 241
+      }
+    }
+  ]
+}
