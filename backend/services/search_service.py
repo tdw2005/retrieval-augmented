@@ -4,6 +4,7 @@ from datetime import datetime
 from pymilvus import connections, Collection, utility
 from services.embedding_service import EmbeddingService
 from utils.config import VectorDBProvider, MILVUS_CONFIG
+from services.retrieval_optimization_service import RetrievalOptimizationService
 import os
 import json
 from pymilvus import MilvusClient, exceptions
@@ -26,10 +27,11 @@ class SearchService:
         创建嵌入服务实例，设置Milvus连接URI，初始化搜索结果保存目录
         """
         self.embedding_service = EmbeddingService()
+        self.retrieval_optimizer = RetrievalOptimizationService()
         self.milvus_uri = MILVUS_CONFIG["uri"]
         self.search_results_dir = "04-search-results"
         os.makedirs(self.search_results_dir, exist_ok=True)
-        self.client=chromadb.PersistentClient(chromadb_path)
+        self.client = chromadb.PersistentClient(chromadb_path)
 
     def get_providers(self) -> List[Dict[str, str]]:
         """
@@ -136,7 +138,9 @@ class SearchService:
                      top_k: int = 3,
                      threshold: float = 0.7,
                      word_count_threshold: int = 20,
-                     save_results: bool = False) -> Dict[str, Any]:
+                     save_results: bool = False,
+                     enable_pre_optimization: bool = True,
+                     enable_post_optimization: bool = True) -> Dict[str, Any]:
         """
         执行向量搜索
 
@@ -147,6 +151,8 @@ class SearchService:
             threshold (float): 相似度阈值，低于此值的结果将被过滤，默认为0.7
             word_count_threshold (int): 文本字数阈值，低于此值的结果将被过滤，默认为20
             save_results (bool): 是否保存搜索结果，默认为False
+            enable_pre_optimization (bool): 是否开启检索前优化，默认开启
+            enable_post_optimization (bool): 是否开启检索后优化，默认开启
 
         Returns:
             Dict[str, Any]: 包含搜索结果的字典，如果保存结果则包含保存路径
@@ -163,17 +169,26 @@ class SearchService:
             logger.info(f"- Threshold: {threshold}")
             logger.info(f"- Word Count Threshold: {word_count_threshold}")
             logger.info(f"- Save Results: {save_results} (type: {type(save_results)})")
+            logger.info(f"- Enable Pre Optimization: {enable_pre_optimization}")
+            logger.info(f"- Enable Post Optimization: {enable_post_optimization}")
 
             logger.info(
-                f"Starting search with parameters - Collection: {collection_id}, Query: {query}, Top K: {top_k}")
+                f"Starting search with parameters - Collection: {collection_id}, Query: {query}, Top K: {top_k}"
+            )
+
+            # =========================
+            # 检索前优化
+            # 新增：在原 query 之前进行清洗和关键词扩展
+            # =========================
+            query_info = self.retrieval_optimizer.rewrite_query_for_retrieval(query)
+            retrieval_query = query_info["optimized_query"] if enable_pre_optimization else query
 
             # 连接到 Chroma
             # 获取collection
             logger.info(f"Loading collection: {collection_id}")
-
             collection = self.client.get_collection(collection_id)
             # 记录collection的基本信息
-            num_entities=collection.count()
+            num_entities = collection.count()
             logger.info(f"Collection info - Entities: {num_entities}")
             if num_entities == 0:
                 raise ValueError(f"Collection {collection_id} is empty")
@@ -191,44 +206,60 @@ class SearchService:
             # 使用collection中存储的配置创建查询向量
             logger.info("Creating query embedding")
             query_embedding = self.embedding_service.create_single_embedding(
-                query,
+                retrieval_query,
                 provider=sample_metadata.get('embedding_provider'),
                 model=sample_metadata.get('embedding_model')
             )
             logger.info(f"Query embedding created with dimension: {len(query_embedding)}")
 
-            results =collection.query(
+            # 这里 n_results 修改为多召回，以便检索后优化
+            candidate_k = min(max(top_k * 3, top_k), num_entities)
+            results = collection.query(
                 query_embeddings=[query_embedding],
-                n_results=min(top_k, num_entities),
+                n_results=candidate_k,
             )
 
             logger.info(f"Sample query results: {results.get('documents')[0][0]}")
 
             # 处理结果
             processed_results = []
-            results_count=len(results['ids'][0])
+            results_count = len(results['ids'][0])
             logger.info(f"Raw search results count: {results_count}")
 
             for hit in range(results_count):
-                hit_score=1-results['distances'][0][hit]
-                logger.info(f"Processing hit - Score: {hit_score}, Word Count: {results['metadatas'][0][hit].get('word_count')}")
-                word_count = int(results['metadatas'][0][hit].get('word_count', 0))
+                hit_score = 1 - results['distances'][0][hit]
+                metadata = results['metadatas'][0][hit]
+                logger.info(f"Processing hit - Score: {hit_score}, Word Count: {metadata.get('word_count')}")
+                word_count = int(metadata.get('word_count', 0))
                 if hit_score >= threshold and word_count >= word_count_threshold:
                     processed_results.append({
                         "text": results.get('documents')[0][hit],
                         "score": float(hit_score),
                         "metadata": {
-                            "source": results['metadatas'][0][hit].get('document_name'),
-                            "page": results['metadatas'][0][hit].get('page_number'),
+                            "source": metadata.get('document_name'),
+                            "page": metadata.get('page_number'),
                             "chunk": results.get('ids')[0][hit],
-                            "total_chunks": results['metadatas'][0][hit].get('total_chunks'),
-                            "page_range": results['metadatas'][0][hit].get('page_range'),
-                            "embedding_provider": results['metadatas'][0][hit].get('embedding_provider'),
-                            "embedding_model": results['metadatas'][0][hit].get('embedding_model'),
-                            "embedding_timestamp": results['metadatas'][0][hit].get('embedding_timestamp')
+                            "total_chunks": metadata.get('total_chunks'),
+                            "page_range": metadata.get('page_range'),
+                            "word_count": word_count,
+                            "embedding_provider": metadata.get('embedding_provider'),
+                            "embedding_model": metadata.get('embedding_model'),
+                            "embedding_timestamp": metadata.get('embedding_timestamp')
                         }
                     })
 
+            # =========================
+            # 检索后优化
+            # 新增：重排序 + 去重 + top_k 截断
+            # =========================
+            if enable_post_optimization:
+                final_results = self.retrieval_optimizer.optimize_search_results(
+                    query=query,
+                    results=processed_results,
+                    top_k=top_k
+                )
+            else:
+                final_results = processed_results[:top_k]
 
 
             # 连接到 Milvus
@@ -323,21 +354,25 @@ class SearchService:
             #                 }
             #             })
 
-            response_data = {"results": processed_results}
+            response_data = {
+                "query_info": query_info,
+                "used_query": retrieval_query,
+                "results": final_results
+            }
 
             # 添加详细的保存逻辑日志
             logger.info(f"Preparing to handle save_results (flag: {save_results})")
             if save_results:
                 logger.info("Save results is True, attempting to save...")
-                if processed_results:
+                if final_results:
                     try:
-                        filepath = self.save_search_results(query, collection_id, processed_results)
+                        filepath = self.save_search_results(retrieval_query, collection_id, final_results)
                         logger.info(f"Successfully saved results to: {filepath}")
                         response_data["saved_filepath"] = filepath
                     except Exception as e:
                         logger.error(f"Error saving results: {str(e)}")
                         response_data["save_error"] = str(e)
-                        raise  # 添加这行来查看完整的错误堆栈
+                        raise
                 else:
                     logger.info("No results to save")
             else:

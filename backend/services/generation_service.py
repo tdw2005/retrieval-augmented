@@ -11,6 +11,7 @@ import requests
 from utils.model_utils import get_huggingface_model_path
 from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from langchain_core.prompts import ChatPromptTemplate
+from services.retrieval_optimization_service import RetrievalOptimizationService
 import time
 
 # 设置环境变量以启用 Apple Silicon (MPS) 回退到 CPU (当遇到不支持的操作时会自动回退到 CPU 执行)
@@ -33,6 +34,8 @@ class GenerationService:
         self.model = ""
         self.tokenizer = ""
         self.history = ""
+        self.retrieval_optimizer = RetrievalOptimizationService()
+
         self.models = {
             "huggingface": {
                 "Llama-2-7b-chat": "meta-llama/Llama-2-7b-chat-hf",
@@ -336,20 +339,42 @@ AI回复：{responseInfo}
             包含生成回答和保存路径的字典
         """
         try:
-            # 准备上下文
-            context = "\n\n".join([
-                f"[Source {i + 1}]: {result['text']}"
-                for i, result in enumerate(search_results)
-            ])
+            # 对检索结果做生成前上下文优化：
+            # 1. 保留来源、页码、相关性得分
+            # 2. 控制上下文长度
+            # 3. 避免直接把所有检索文本无脑塞进 prompt
+            context = self.retrieval_optimizer.build_generation_context(
+                search_results=search_results,
+                max_chars=6000
+            )
+
+            if not context.strip():
+                context = "没有检索到可用的上下文资料。"
 
             ts = time.time()
             # 根据不同提供商生成回答
             if provider == "huggingface":
-                response = self._generate_with_huggingface(model_name, query, context, load_model)
+                response = self._generate_with_huggingface(
+                    model_name,
+                    query,
+                    context,
+                    load_model
+                )
             elif provider == "aliyun":
-                response = self._generate_with_aliyun(model_name, query, context, api_key)
+                response = self._generate_with_aliyun(
+                    model_name,
+                    query,
+                    context,
+                    api_key
+                )
             elif provider == "deepseek":
-                response = self._generate_with_deepseek(model_name, query, context, api_key, show_reasoning)
+                response = self._generate_with_deepseek(
+                    model_name,
+                    query,
+                    context,
+                    api_key,
+                    show_reasoning
+                )
             else:
                 raise ValueError(f"Unsupported provider: {provider}")
 
@@ -360,6 +385,7 @@ AI回复：{responseInfo}
                 "provider": provider,
                 "model": model_name,
                 "response": response,
+                "optimized_context": context,
                 "context": search_results
             }
 
@@ -374,7 +400,8 @@ AI回复：{responseInfo}
 
             return {
                 "response": response,
-                "saved_filepath": filepath
+                "saved_filepath": filepath,
+                "optimized_context": context
             }
 
         except Exception as e:
