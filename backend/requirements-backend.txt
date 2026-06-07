@@ -1,0 +1,25 @@
+# Web API
+fastapi
+uvicorn
+python-multipart
+pandas
+
+# PDF loading and chunking
+PyMuPDF
+pypdf
+pdfplumber
+unstructured[pdf]
+langchain-text-splitters
+
+# Embedding, vector stores, and model providers
+chromadb
+pymilvus
+pypinyin
+python-dotenv
+boto3
+openai
+langchain-community
+langchain-huggingface
+sentence-transformers
+transformers
+torch

@@ -69,14 +69,14 @@ class SearchService:
             print(collection_names)
 
             for sample in collection_names:
-                name=sample.name
+                # Chroma versions return either names or collection objects.
+                name = sample if isinstance(sample, str) else sample.name
                 try:
-                    #collection = self.client.get_or_create_collection(name)
-                    collection = self.client.get_or_create_collection(name)
+                    collection = self.client.get_collection(name)
                     collections.append({
                         "id": name,
                         "name": name,
-                        "count": 1      #collection.num_entities
+                        "count": collection.count()
                     })
                 except Exception as e:
                     logger.error(f"Error getting info for collection {name}: {str(e)}")
@@ -175,26 +175,31 @@ class SearchService:
             # 记录collection的基本信息
             num_entities=collection.count()
             logger.info(f"Collection info - Entities: {num_entities}")
+            if num_entities == 0:
+                raise ValueError(f"Collection {collection_id} is empty")
 
             logger.info(f"query: {query}")
 
-            sample_entity =collection.query(
-                query_texts=[query],
-                n_results=1,
+            # Read embedding metadata without invoking Chroma's default
+            # embedding function or downloading an unrelated model.
+            sample_entity = collection.get(
+                limit=1,
+                include=["metadatas"],
             )
+            sample_metadata = sample_entity["metadatas"][0]
 
             # 使用collection中存储的配置创建查询向量
             logger.info("Creating query embedding")
             query_embedding = self.embedding_service.create_single_embedding(
                 query,
-                provider=sample_entity['metadatas'][0][0].get('embedding_provider'),
-                model=sample_entity['metadatas'][0][0].get('embedding_model')
+                provider=sample_metadata.get('embedding_provider'),
+                model=sample_metadata.get('embedding_model')
             )
             logger.info(f"Query embedding created with dimension: {len(query_embedding)}")
 
             results =collection.query(
                 query_embeddings=[query_embedding],
-                n_results=top_k,
+                n_results=min(top_k, num_entities),
             )
 
             logger.info(f"Sample query results: {results.get('documents')[0][0]}")
@@ -207,7 +212,8 @@ class SearchService:
             for hit in range(results_count):
                 hit_score=1-results['distances'][0][hit]
                 logger.info(f"Processing hit - Score: {hit_score}, Word Count: {results['metadatas'][0][hit].get('word_count')}")
-                if hit_score >= threshold:
+                word_count = int(results['metadatas'][0][hit].get('word_count', 0))
+                if hit_score >= threshold and word_count >= word_count_threshold:
                     processed_results.append({
                         "text": results.get('documents')[0][hit],
                         "score": float(hit_score),
@@ -342,5 +348,3 @@ class SearchService:
         except Exception as e:
             logger.error(f"Error performing search: {str(e)}")
             raise
-        finally:
-            connections.disconnect("default")

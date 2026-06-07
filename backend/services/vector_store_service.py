@@ -505,7 +505,10 @@ class VectorStoreService:
 
         if provider == VectorDBProvider.CHROMA:
             collections = self.client.list_collections()
-            return collections
+            return [
+                collection if isinstance(collection, str) else collection.name
+                for collection in collections
+            ]
 
         return []
 

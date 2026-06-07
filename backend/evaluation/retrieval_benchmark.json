@@ -1,0 +1,56 @@
+{
+  "datasets": [
+    {
+      "name": "phone_by_pages",
+      "document": "../01-chunked-docs/phone_by_pages_20260510170028.json",
+      "queries": [
+        {
+          "query": "哪款手机支持无线充电，充电功率是多少？",
+          "expected_pages": [2]
+        },
+        {
+          "query": "天玑7025-Ultra处理器属于哪款手机？",
+          "expected_pages": [3]
+        },
+        {
+          "query": "哪款手机支持IP68防水防尘？",
+          "expected_pages": [1]
+        },
+        {
+          "query": "比较三款手机的后置摄像头像素",
+          "expected_pages": [1, 2, 3]
+        },
+        {
+          "query": "哪两款手机的屏幕刷新率是120Hz？",
+          "expected_pages": [2, 3]
+        }
+      ]
+    },
+    {
+      "name": "uv_tutorial_by_pages",
+      "document": "../01-chunked-docs/20250802-Python包管理器“uv”安装及使用教程_by_pages_20260510143348.json",
+      "queries": [
+        {
+          "query": "uv是什么，它比pip快多少？",
+          "expected_pages": [1]
+        },
+        {
+          "query": "如何使用PowerShell一键安装uv？",
+          "expected_pages": [2]
+        },
+        {
+          "query": "如何将uv.exe加入用户级PATH？",
+          "expected_pages": [3]
+        },
+        {
+          "query": "国内网络无法从GitHub下载uv时怎么办？",
+          "expected_pages": [4]
+        },
+        {
+          "query": "如何在VS Code中选择uv虚拟环境的解释器？",
+          "expected_pages": [5]
+        }
+      ]
+    }
+  ]
+}

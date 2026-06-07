@@ -304,7 +304,8 @@ async def search(
     collection_id: str = Body(...),
     top_k: int = Body(3),
     threshold: float = Body(0.7),
-    word_count_threshold: int = Body(100)
+    word_count_threshold: int = Body(100),
+    save_results: bool = Body(False)
 ):
     """执行向量搜索"""
     try:
@@ -321,13 +322,14 @@ async def search(
             collection_id=collection_id,
             top_k=top_k,
             threshold=threshold,
-            word_count_threshold=word_count_threshold
+            word_count_threshold=word_count_threshold,
+            save_results=save_results
         )
         
         # Log the search results
         logger.info(f"Search response: {results}")
         
-        return {"results": results}
+        return results
     except Exception as e:
         logger.error(f"Error performing search: {str(e)}")
         raise HTTPException(
@@ -800,12 +802,13 @@ async def evaluate_search(
                     continue
                 
                 # 执行搜索
-                search_results = await search_service.search(
+                search_response = await search_service.search(
                     query=row['combined_text'],
                     collection_id=collection_id,
                     top_k=top_k,
                     threshold=threshold
                 )
+                search_results = search_response["results"]
                 
                 # 提取找到的页码
                 found_pages = [int(result['metadata']['page']) for result in search_results]

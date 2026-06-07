@@ -5,7 +5,8 @@ import json
 from datetime import datetime
 from enum import Enum
 import boto3
-from langchain_community.embeddings import BedrockEmbeddings, OpenAIEmbeddings, HuggingFaceEmbeddings
+from langchain_community.embeddings import BedrockEmbeddings, OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from utils.model_utils import get_huggingface_model_path
 
 class EmbeddingProvider(str, Enum):
