@@ -1,5 +1,4 @@
 from pypdf import PdfReader
-from unstructured.partition.pdf import partition_pdf
 import pdfplumber
 import fitz  # PyMuPDF
 import logging
@@ -161,6 +160,9 @@ class LoadingService:
             str: 提取的文本内容
         """
         try:
+            from unstructured.partition.pdf import partition_pdf
+
+            chunking_options = chunking_options or {}
             strategy_params = {
                 "fast": {"strategy": "fast"},
                 "hi_res": {"strategy": "hi_res"},

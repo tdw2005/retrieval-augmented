@@ -124,6 +124,13 @@ class VectorStoreService:
         # 连接到chroma
         self.client=chromadb.PersistentClient(chromadb_path)
 
+    def _get_milvus_client(self) -> MilvusClient:
+        return MilvusClient(
+            uri=MILVUS_CONFIG.get("endpoint", "http://localhost:19530"),
+            token=MILVUS_CONFIG.get("token", "root:Milvus"),
+            db_name=MILVUS_CONFIG["uri"]
+        )
+
     def _get_milvus_index_type(self, config: VectorDBConfig) -> str:
         """
         从配置对象获取Milvus索引类型
@@ -244,11 +251,7 @@ class VectorStoreService:
 
             # 连接到Milvus
 
-            client = MilvusClient(
-                uri="http://localhost:19530",
-                token="root:Milvus",
-                db_name=config.milvus_uri
-            )
+            client = self._get_milvus_client()
 
             # 从顶层配置获取向量维度
             vector_dim = int(embeddings_data.get("vector_dimension"))
@@ -337,6 +340,7 @@ class VectorStoreService:
             # 插入数据
             logger.info(f"Inserting {len(entities)} vectors")
             insert_result = client.insert(collection_name=collection_name, data=entities)
+            client.flush(collection_name=collection_name)
 
             # 创建索引
             index_params = client.prepare_index_params()
@@ -361,9 +365,6 @@ class VectorStoreService:
         except Exception as e:
             logger.error(f"Error indexing to Milvus: {str(e)}")
             raise
-
-        finally:
-            connections.disconnect("default")
 
     def _index_to_chroma(self, embeddings_data: Dict[str, Any], config: VectorDBConfig) -> Dict[str, Any]:
         """
@@ -495,13 +496,9 @@ class VectorStoreService:
         返回:
             集合名称列表
         """
-        if provider == VectorDBProvider.MILVUS:
-            try:
-                connections.connect(alias="default", uri=MILVUS_CONFIG["uri"])
-                collections = utility.list_collections()
-                return collections
-            finally:
-                connections.disconnect("default")
+        if provider == VectorDBProvider.MILVUS or provider == VectorDBProvider.MILVUS.value:
+            client = self._get_milvus_client()
+            return client.list_collections()
 
         if provider == VectorDBProvider.CHROMA:
             collections = self.client.list_collections()
@@ -523,13 +520,10 @@ class VectorStoreService:
         返回:
             是否删除成功
         """
-        if provider == VectorDBProvider.MILVUS:
-            try:
-                connections.connect(alias="default", uri=MILVUS_CONFIG["uri"])
-                utility.drop_collection(collection_name)
-                return True
-            finally:
-                connections.disconnect("default")
+        if provider == VectorDBProvider.MILVUS or provider == VectorDBProvider.MILVUS.value:
+            client = self._get_milvus_client()
+            client.drop_collection(collection_name)
+            return True
         elif provider == VectorDBProvider.CHROMA:
             try:
                 self.client.delete_collection(name=collection_name)
@@ -549,17 +543,23 @@ class VectorStoreService:
         返回:
             集合信息字典
         """
-        if provider == VectorDBProvider.MILVUS:
-            try:
-                connections.connect(alias="default", uri=MILVUS_CONFIG["uri"])
-                collection = Collection(collection_name)
-                return {
-                    "name": collection_name,
-                    "num_entities": collection.num_entities,
-                    "schema": collection.schema.to_dict()
-                }
-            finally:
-                connections.disconnect("default")
+        if provider == VectorDBProvider.MILVUS or provider == VectorDBProvider.MILVUS.value:
+            client = self._get_milvus_client()
+            stats = client.get_collection_stats(collection_name)
+            num_entities = int(stats.get("row_count", 0))
+            if num_entities == 0:
+                rows = client.query(
+                    collection_name=collection_name,
+                    filter="id >= 0",
+                    limit=16384,
+                    output_fields=["id"]
+                )
+                num_entities = len(rows)
+            return {
+                "name": collection_name,
+                "num_entities": num_entities,
+                "schema": client.describe_collection(collection_name)
+            }
         elif provider == VectorDBProvider.CHROMA:
             try:
                 collection=self.client.get_collection(name=collection_name)

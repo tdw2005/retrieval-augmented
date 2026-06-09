@@ -5,8 +5,6 @@ import { apiBaseUrl } from '../config/config';
 
 const Indexing = () => {
   const [embeddingFile, setEmbeddingFile] = useState('');
-  //const [vectorDb, setVectorDb] = useState('milvus');
-  const [vectorDb, setVectorDb] = useState('chroma');
   const [indexMode, setIndexMode] = useState('standard');
   const [status, setStatus] = useState('');
   const [embeddedFiles, setEmbeddedFiles] = useState([]);
@@ -43,13 +41,12 @@ const Indexing = () => {
 
   useEffect(() => {
     fetchEmbeddedFiles();
-    fetchCollections();
   }, []);
 
   useEffect(() => {
     // 当数据库改变时，重置索引模式为该数据库的第一个可用模式
-    setIndexMode(dbConfigs[vectorDb].modes[0]);
-  }, [vectorDb]);
+    setIndexMode(dbConfigs[selectedProvider].modes[0]);
+  }, [selectedProvider]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -60,9 +57,7 @@ const Indexing = () => {
         setProviders(providersData.providers);
 
         // 获取collections列表
-        const collectionsResponse = await fetch(`${apiBaseUrl}/collections?provider=${selectedProvider}`);
-        const collectionsData = await collectionsResponse.json();
-        setCollections(collectionsData.collections);
+        await fetchCollections(selectedProvider);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -88,11 +83,18 @@ const Indexing = () => {
     }
   };
 
-  const fetchCollections = async () => {
+  const fetchCollections = async (provider = selectedProvider) => {
     try {
-      const response = await fetch(`${apiBaseUrl}/collections}`);
+      const endpoint = provider === 'milvus'
+        ? `${apiBaseUrl}/collections/${provider}`
+        : `${apiBaseUrl}/collections?provider=${provider}`;
+      const response = await fetch(endpoint);
       const data = await response.json();
-      setCollections(data.collections || []);
+      setCollections((data.collections || []).map(collection => (
+        typeof collection === 'string'
+          ? { id: collection, name: collection, count: null }
+          : collection
+      )));
     } catch (error) {
       console.error('Error fetching collections:', error);
     }
@@ -113,7 +115,7 @@ const Indexing = () => {
         },
         body: JSON.stringify({
           fileId: embeddingFile,
-          vectorDb,
+          vectorDb: selectedProvider,
           indexMode
         }),
       });
@@ -121,6 +123,7 @@ const Indexing = () => {
       const data = await response.json();
       setIndexingResult(data);
       setStatus('Indexing completed successfully');
+      await fetchCollections(selectedProvider);
     } catch (error) {
       console.error('Error indexing:', error);
       setStatus('Error during indexing: ' + error.message);
@@ -171,9 +174,7 @@ const Indexing = () => {
         });
         setSelectedCollection('');
         // 重新获取collections列表
-        const response = await fetch(`${apiBaseUrl}/collections?provider=${selectedProvider}`);
-        const data = await response.json();
-        setCollections(data.collections);
+        await fetchCollections(selectedProvider);
       } catch (error) {
         console.error('Error deleting collection:', error);
       }
@@ -231,7 +232,7 @@ const Indexing = () => {
                 onChange={(e) => setIndexMode(e.target.value)}
                 className="block w-full p-2 border rounded"
               >
-                {dbConfigs[vectorDb].modes.map(mode => (
+                {dbConfigs[selectedProvider].modes.map(mode => (
                   <option key={mode} value={mode}>
                     {mode.toUpperCase()}
                   </option>
@@ -261,7 +262,7 @@ const Indexing = () => {
                   <option value="">Choose a collection...</option>
                   {collections.map(coll => (
                     <option key={coll.id} value={coll.id}>
-                      {coll.name} ({coll.count} documents)
+                      {coll.name}{coll.count === null ? '' : ` (${coll.count} documents)`}
                     </option>
                   ))}
                 </select>

@@ -11,9 +11,24 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+backend/.env
 .venv/
 __pycache__/
 *.py[cod]
+.milvus/
+.npm-cache/
+.runtime-cache/
+
+# Runtime-generated RAG artifacts
+backend/01-loaded-docs/
+backend/01-chunked-docs/
+backend/02-embedded-docs/
+backend/03-vector-store/
+backend/04-search-results/
+backend/05-generation-results/
+backend/06-evaluation-result/
+backend/temp/
 
 # Editor directories and files
 .vscode/*

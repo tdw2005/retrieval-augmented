@@ -322,6 +322,9 @@ AI回复：{responseInfo}
             load_model: bool,
             api_key: Optional[str] = None,
             show_reasoning: bool = True,
+            enable_pre_retrieval_optimization: bool = True,
+            enable_post_retrieval_optimization: bool = True,
+            max_context_chars: int = 6000,
     ) -> Dict:
         """
         生成回答并保存结果
@@ -343,9 +346,18 @@ AI回复：{responseInfo}
             # 1. 保留来源、页码、相关性得分
             # 2. 控制上下文长度
             # 3. 避免直接把所有检索文本无脑塞进 prompt
-            context = self.retrieval_optimizer.build_generation_context(
-                search_results=search_results,
-                max_chars=6000
+            query_info = self.retrieval_optimizer.rewrite_query_for_retrieval(query)
+            optimized_query = (
+                query_info["optimized_query"]
+                if enable_pre_retrieval_optimization
+                else query
+            )
+            optimized_results, context = self.retrieval_optimizer.optimize_results_for_generation(
+                query=optimized_query,
+                results=search_results,
+                enable_post_optimization=enable_post_retrieval_optimization,
+                top_k=len(search_results) if search_results else 0,
+                max_context_chars=max_context_chars
             )
 
             if not context.strip():
@@ -386,7 +398,17 @@ AI回复：{responseInfo}
                 "model": model_name,
                 "response": response,
                 "optimized_context": context,
-                "context": search_results
+                "context": optimized_results,
+                "original_context": search_results,
+                "retrieval_optimization": {
+                    "enable_pre_retrieval_optimization": enable_pre_retrieval_optimization,
+                    "enable_post_retrieval_optimization": enable_post_retrieval_optimization,
+                    "query_info": query_info,
+                    "used_query": optimized_query,
+                    "input_result_count": len(search_results),
+                    "optimized_result_count": len(optimized_results),
+                    "max_context_chars": max_context_chars
+                }
             }
 
             # 生成文件名并保存
@@ -401,7 +423,9 @@ AI回复：{responseInfo}
             return {
                 "response": response,
                 "saved_filepath": filepath,
-                "optimized_context": context
+                "optimized_context": context,
+                "context": optimized_results,
+                "retrieval_optimization": result["retrieval_optimization"]
             }
 
         except Exception as e:

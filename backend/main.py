@@ -132,14 +132,43 @@ async def list_documents():
                 file_path = os.path.join(docs_dir, filename)
                 with open(file_path, 'r', encoding='utf-8') as f:
                     doc_data = json.load(f)
+                    doc_name = (
+                        doc_data.get("document_name")
+                        or doc_data.get("filename")
+                        or os.path.splitext(filename)[0]
+                    )
                     docs.append({
                         "id": filename,
-                        "name": doc_data["document_name"]
+                        "name": doc_name
                     })
         return {"documents": docs}
     except Exception as e:
         logger.error(f"Error listing documents: {str(e)}")
         raise
+
+def _document_display_name(filename: str, doc_data: dict) -> str:
+    return (
+        doc_data.get("document_name")
+        or doc_data.get("filename")
+        or doc_data.get("metadata", {}).get("filename")
+        or filename
+    )
+
+def _document_summary(filename: str, doc_data: dict, doc_type: str) -> dict:
+    source_metadata = doc_data.get("metadata", {}) if isinstance(doc_data.get("metadata"), dict) else {}
+    metadata = {
+        "total_pages": doc_data.get("total_pages") or source_metadata.get("total_pages"),
+        "total_chunks": doc_data.get("total_chunks") or source_metadata.get("total_chunks"),
+        "loading_method": doc_data.get("loading_method") or source_metadata.get("loading_method"),
+        "chunking_method": doc_data.get("chunking_method") or source_metadata.get("chunking_method"),
+        "timestamp": doc_data.get("timestamp") or source_metadata.get("timestamp") or source_metadata.get("processing_date")
+    }
+    return {
+        "id": filename,
+        "name": _document_display_name(filename, doc_data),
+        "type": doc_type,
+        "metadata": metadata
+    }
 
 @app.post("/embed")
 async def embed_document(data: dict = Body(...)):
@@ -302,9 +331,10 @@ async def get_collections(
 async def search(
     query: str = Body(...),
     collection_id: str = Body(...),
+    provider: str = Body(VectorDBProvider.CHROMA.value),
     top_k: int = Body(3),
-    threshold: float = Body(0.7),
-    word_count_threshold: int = Body(100),
+    threshold: float = Body(0.0),
+    word_count_threshold: int = Body(0),
     save_results: bool = Body(False)
 ):
     """执行向量搜索"""
@@ -320,6 +350,7 @@ async def search(
         results = await search_service.search(
             query=query,
             collection_id=collection_id,
+            provider=provider,
             top_k=top_k,
             threshold=threshold,
             word_count_threshold=word_count_threshold,
@@ -389,45 +420,33 @@ async def delete_collection(provider: str, collection_name: str):
 async def get_documents(type: str = Query("all")):
     try:
         documents = []
-        
-        # 读取loaded文档
+        warnings = []
+        sources = []
         if type in ["all", "loaded"]:
-            loaded_dir = "01-loaded-docs"
-            if os.path.exists(loaded_dir):
-                for filename in os.listdir(loaded_dir):
-                    if filename.endswith('.json'):
-                        file_path = os.path.join(loaded_dir, filename)
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            doc_data = json.load(f)
-                            documents.append({
-                                "id": filename,
-                                "name": filename,
-                                "type": "loaded",
-                                "metadata": {
-                                    "total_pages": doc_data.get("total_pages"),
-                                    "total_chunks": doc_data.get("total_chunks"),
-                                    "loading_method": doc_data.get("loading_method"),
-                                    "chunking_method": doc_data.get("chunking_method"),
-                                    "timestamp": doc_data.get("timestamp")
-                                }
-                            })
-
-        # 读取chunked文档
+            sources.append(("loaded", "01-loaded-docs"))
         if type in ["all", "chunked"]:
-            chunked_dir = "01-chunked-docs"
-            if os.path.exists(chunked_dir):
-                for filename in os.listdir(chunked_dir):
-                    if filename.endswith('.json'):
-                        file_path = os.path.join(chunked_dir, filename)
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            doc_data = json.load(f)
-                            documents.append({
-                                "id": filename,
-                                "name": filename,  # 保持原始文件名
-                                "type": "chunked"
-                            })
-        
-        return {"documents": documents}
+            sources.append(("chunked", "01-chunked-docs"))
+
+        for doc_type, directory in sources:
+            if not os.path.exists(directory):
+                continue
+            for filename in os.listdir(directory):
+                if not filename.endswith('.json'):
+                    continue
+                file_path = os.path.join(directory, filename)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        doc_data = json.load(f)
+                    documents.append(_document_summary(filename, doc_data, doc_type))
+                except Exception as e:
+                    logger.warning(f"Skipping unreadable {doc_type} document {file_path}: {str(e)}")
+                    warnings.append({
+                        "id": filename,
+                        "type": doc_type,
+                        "error": str(e)
+                    })
+
+        return {"documents": documents, "warnings": warnings}
     except Exception as e:
         logger.error(f"Error getting documents: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -550,6 +569,119 @@ async def delete_embedded_doc(doc_name: str):
     except Exception as e:
         logger.error(f"Error deleting embedded document {doc_name}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+def _stringify_json_value(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        return str(value).strip()
+    return ""
+
+def _extract_answer_text(answer) -> str:
+    if isinstance(answer, dict):
+        quality = answer.get("answer_quality")
+        text = answer.get("answer") or answer.get("content") or answer.get("text")
+        text = _stringify_json_value(text)
+        if not text:
+            return ""
+        if quality is not None:
+            return f"Answer quality {quality}: {text}"
+        return f"Answer: {text}"
+
+    text = _stringify_json_value(answer)
+    return f"Answer: {text}" if text else ""
+
+def _extract_json_text_units(value, title: str = "") -> List[str]:
+    if isinstance(value, list):
+        units = []
+        for item in value:
+            units.extend(_extract_json_text_units(item, title=title))
+        return units
+
+    if not isinstance(value, dict):
+        text = _stringify_json_value(value)
+        return [text] if text else []
+
+    if "question" in value and "answers" in value:
+        parts = []
+        if title:
+            parts.append(f"Title: {title}")
+        question = _stringify_json_value(value.get("question"))
+        if question:
+            parts.append(f"Question: {question}")
+        answers = value.get("answers") or []
+        if isinstance(answers, list):
+            parts.extend(
+                answer_text
+                for answer_text in (_extract_answer_text(answer) for answer in answers)
+                if answer_text
+            )
+        else:
+            answer_text = _extract_answer_text(answers)
+            if answer_text:
+                parts.append(answer_text)
+        return ["\n".join(parts)] if parts else []
+
+    direct_text = (
+        value.get("content")
+        or value.get("text")
+        or value.get("page_content")
+        or value.get("answer")
+        or value.get("question")
+    )
+    direct_text = _stringify_json_value(direct_text)
+    if direct_text:
+        return [direct_text]
+
+    units = []
+    for key, child in value.items():
+        child_title = str(key) if not title else title
+        units.extend(_extract_json_text_units(child, title=child_title))
+    return units
+
+def _build_page_map_from_document(doc_data: dict, doc_id: str) -> tuple[list, dict]:
+    if isinstance(doc_data, dict) and isinstance(doc_data.get("chunks"), list):
+        page_map = []
+        for index, chunk in enumerate(doc_data["chunks"], 1):
+            if not isinstance(chunk, dict):
+                continue
+            text = _stringify_json_value(chunk.get("content") or chunk.get("text"))
+            if not text:
+                continue
+            metadata = chunk.get("metadata", {}) or {}
+            page_map.append({
+                "page": metadata.get("page_number") or metadata.get("page") or index,
+                "text": text
+            })
+        metadata = {
+            "filename": doc_data.get("filename") or doc_data.get("document_name") or doc_id,
+            "loading_method": doc_data.get("loading_method", "json"),
+            "total_pages": doc_data.get("total_pages", len(page_map))
+        }
+        return page_map, metadata
+
+    units = _extract_json_text_units(doc_data)
+    page_map = [
+        {
+            "page": index,
+            "text": text
+        }
+        for index, text in enumerate(units, 1)
+        if text
+    ]
+
+    if not page_map:
+        raise HTTPException(
+            status_code=400,
+            detail="JSON document does not contain supported text fields. Expected chunks[].content, content, text, question/answers, or nested string values."
+        )
+
+    metadata = {
+        "filename": doc_data.get("filename", doc_id) if isinstance(doc_data, dict) else doc_id,
+        "loading_method": doc_data.get("loading_method", "json") if isinstance(doc_data, dict) else "json",
+        "total_pages": len(page_map)
+    }
+    return page_map, metadata
 
 @app.post("/parse")
 async def parse_file(
@@ -718,20 +850,9 @@ async def chunk_document(data: dict = Body(...)):
             doc_data = json.load(f)
             
         # 构建页面映射
-        page_map = [
-            {
-                'page': chunk['metadata']['page_number'],
-                'text': chunk['content']
-            }
-            for chunk in doc_data['chunks']
-        ]
+        page_map, metadata = _build_page_map_from_document(doc_data, doc_id)
             
         # 准备元数据
-        metadata = {
-            "filename": doc_data['filename'],
-            "loading_method": doc_data['loading_method'],
-            "total_pages": doc_data['total_pages']
-        }
             
         chunking_service = ChunkingService()
         result = chunking_service.chunk_text(
@@ -744,7 +865,7 @@ async def chunk_document(data: dict = Body(...)):
         
         # 生成输出文件名
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        base_name = doc_data['filename'].replace('.pdf', '').split('_')[0]
+        base_name = os.path.splitext(metadata.get("filename", doc_id))[0]
         output_filename = f"{base_name}_{chunking_option}_{timestamp}.json"
         
         output_path = os.path.join("01-chunked-docs", output_filename)
@@ -755,6 +876,8 @@ async def chunk_document(data: dict = Body(...)):
         
         return result
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error chunking document: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -933,18 +1056,51 @@ async def generate_response(
     model_name: str = Body(...),
     search_results: List[Dict] = Body(...),
     load_model: bool = Body(...),
-    api_key: Optional[str] = Body(None)
+    api_key: Optional[str] = Body(None),
+    show_reasoning: bool = Body(True),
+    collection_id: Optional[str] = Body(None),
+    vector_db_provider: str = Body(VectorDBProvider.CHROMA.value),
+    top_k: int = Body(3),
+    threshold: float = Body(0.0),
+    word_count_threshold: int = Body(0),
+    enable_pre_retrieval_optimization: bool = Body(True),
+    enable_post_retrieval_optimization: bool = Body(True),
+    max_context_chars: int = Body(6000)
 ):
     """生成回答"""
     try:
+        retrieval_response = None
+        effective_search_results = search_results
+
+        if collection_id:
+            search_service = SearchService()
+            retrieval_response = await search_service.search(
+                query=query,
+                collection_id=collection_id,
+                provider=vector_db_provider,
+                top_k=top_k,
+                threshold=threshold,
+                word_count_threshold=word_count_threshold,
+                save_results=False,
+                enable_pre_optimization=enable_pre_retrieval_optimization,
+                enable_post_optimization=enable_post_retrieval_optimization
+            )
+            effective_search_results = retrieval_response.get("results", [])
+
         result = generation_service.generate(
             provider=provider,
             model_name=model_name,
             query=query,
-            search_results=search_results,
+            search_results=effective_search_results,
             load_model=load_model,
-            api_key=api_key
+            api_key=api_key,
+            show_reasoning=show_reasoning,
+            enable_pre_retrieval_optimization=enable_pre_retrieval_optimization,
+            enable_post_retrieval_optimization=enable_post_retrieval_optimization,
+            max_context_chars=max_context_chars
         )
+        if retrieval_response is not None:
+            result["retrieval"] = retrieval_response
         return result
     except Exception as e:
         logger.error(f"Error generating response: {str(e)}")

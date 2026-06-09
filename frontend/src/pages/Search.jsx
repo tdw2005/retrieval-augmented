@@ -9,11 +9,11 @@ const Search = () => {
   const [results, setResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [topK, setTopK] = useState(3);
-  const [threshold, setThreshold] = useState(0.7);
+  const [threshold, setThreshold] = useState(0);
   const [collections, setCollections] = useState([]);
   const [providers, setProviders] = useState([]);
   const [selectedProvider, setSelectedProvider] = useState('milvus');
-  const [wordCountThreshold, setWordCountThreshold] = useState(100);
+  const [wordCountThreshold, setWordCountThreshold] = useState(0);
   const [saveResults, setSaveResults] = useState(false);
   const [status, setStatus] = useState('');
 
@@ -24,12 +24,12 @@ const Search = () => {
         // 获取providers列表
         const providersResponse = await fetch(`${apiBaseUrl}/providers`);
         const providersData = await providersResponse.json();
-        setProviders(providersData.providers);
+        setProviders(providersData.providers || []);
 
         // 获取collections列表
         const collectionsResponse = await fetch(`${apiBaseUrl}/collections?provider=${selectedProvider}`);
         const collectionsData = await collectionsResponse.json();
-        setCollections(collectionsData.collections);
+        setCollections(collectionsData.collections || []);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -50,6 +50,7 @@ const Search = () => {
       const searchParams = {
         query,
         collection_id: collection,
+        provider: selectedProvider,
         top_k: topK,
         threshold,
         word_count_threshold: wordCountThreshold,
@@ -154,7 +155,11 @@ const Search = () => {
                 <label className="block text-sm font-medium mb-1">向量库</label>
                 <select
                   value={selectedProvider}
-                  onChange={(e) => setSelectedProvider(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedProvider(e.target.value);
+                    setCollection('');
+                    setResults([]);
+                  }}
                   className="block w-full p-2 border rounded"
                 >
                   {providers.map(provider => (

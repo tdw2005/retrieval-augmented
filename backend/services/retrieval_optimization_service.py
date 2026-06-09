@@ -1,7 +1,7 @@
 import re
 import logging
 from difflib import SequenceMatcher
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -183,3 +183,107 @@ class RetrievalOptimizationService:
         deduplicated_results = self.deduplicate_results(reranked_results)
 
         return deduplicated_results[:top_k]
+
+    # =========================
+    # Generation context optimization
+    # =========================
+
+    def _compact_text(self, text: str) -> str:
+        if not text:
+            return ""
+        return re.sub(r"\s+", " ", text).strip()
+
+    def _format_score(self, value: Optional[Any]) -> str:
+        if value is None:
+            return ""
+        try:
+            return f"{float(value):.4f}"
+        except (TypeError, ValueError):
+            return str(value)
+
+    def build_generation_context(
+        self,
+        search_results: List[Dict[str, Any]],
+        max_chars: int = 6000
+    ) -> str:
+        """
+        Build a compact, citation-friendly context block for answer generation.
+        It keeps source/page metadata, preserves the search order, and trims
+        long chunks so the prompt budget is spent on the most useful evidence.
+        """
+        if not search_results or max_chars <= 0:
+            return ""
+
+        sections = []
+        used_chars = 0
+
+        for index, item in enumerate(search_results, start=1):
+            text = self._compact_text(item.get("text", ""))
+            if not text:
+                continue
+
+            metadata = item.get("metadata", {}) or {}
+            source = (
+                metadata.get("source")
+                or metadata.get("document_name")
+                or metadata.get("filename")
+                or "unknown"
+            )
+            page = metadata.get("page") or metadata.get("page_number") or metadata.get("page_range") or ""
+            chunk = metadata.get("chunk") or metadata.get("chunk_id") or ""
+            score = self._format_score(item.get("rerank_score", item.get("score")))
+
+            header_parts = [f"[{index}]", f"source: {source}"]
+            if page != "":
+                header_parts.append(f"page: {page}")
+            if chunk != "":
+                header_parts.append(f"chunk: {chunk}")
+            if score:
+                header_parts.append(f"score: {score}")
+
+            header = " | ".join(header_parts)
+            remaining = max_chars - used_chars - len(header) - 2
+            if remaining <= 80:
+                break
+
+            if len(text) > remaining:
+                text = text[: max(0, remaining - 3)].rstrip() + "..."
+
+            section = f"{header}\n{text}"
+            sections.append(section)
+            used_chars += len(section) + 2
+
+            if used_chars >= max_chars:
+                break
+
+        return "\n\n".join(sections)
+
+    def optimize_results_for_generation(
+        self,
+        query: str,
+        results: List[Dict[str, Any]],
+        enable_post_optimization: bool = True,
+        top_k: Optional[int] = None,
+        max_context_chars: int = 6000
+    ) -> Tuple[List[Dict[str, Any]], str]:
+        """
+        Prepare retrieved chunks for answer generation.
+        """
+        if not results:
+            return [], ""
+
+        limit = top_k if top_k is not None else len(results)
+        if enable_post_optimization:
+            optimized_results = self.optimize_search_results(
+                query=query,
+                results=results,
+                top_k=limit
+            )
+        else:
+            optimized_results = results[:limit]
+
+        context = self.build_generation_context(
+            search_results=optimized_results,
+            max_chars=max_context_chars
+        )
+        return optimized_results, context

@@ -40,41 +40,33 @@ const EmbeddingFile = () => {
   }, [embeddingProvider]);
 
   const fetchAvailableDocs = async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
-      console.log('开始获取文档列表...');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
-      
       const response = await fetch(`${apiBaseUrl}/documents?type=all`, {
         signal: controller.signal,
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'Content-Type': 'application/json'
         }
       });
-      
-      clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
-      console.log('API响应状态:', response.status);
+
       const data = await response.json();
-      console.log('API响应数据:', data);
-      console.log('文档列表:', data.documents);
-      if (!Array.isArray(data.documents)) {
-        console.error('文档数据不是数组格式:', data.documents);
-        return;
-      }
-      setAvailableDocs(data.documents);
+      setAvailableDocs(Array.isArray(data.documents) ? data.documents : []);
     } catch (error) {
-      console.error('获取文档列表出错:', error);
+      console.error('Error fetching available documents:', error);
       if (error.name === 'AbortError') {
-        setStatus('获取文档列表超时，请检查后端服务是否正常运行');
+        setStatus('获取文档列表超时，请稍后重试或检查后端服务');
       } else {
         setStatus('获取文档列表失败: ' + error.message);
       }
+    } finally {
+      clearTimeout(timeoutId);
     }
   };
 
@@ -287,7 +279,7 @@ const EmbeddingFile = () => {
               >
                 <option value="">Choose a document...</option>
                 {availableDocs.map(doc => (
-                  <option key={doc.id} value={doc.name}>
+                  <option key={doc.id} value={doc.id}>
                     {doc.name} ({doc.type})
                   </option>
                 ))}

@@ -21,47 +21,14 @@ const ChunkFile = () => {
     try {
       const response = await fetch(`${apiBaseUrl}/documents?type=loaded`);
       const data = await response.json();
-      setLoadedDocuments(data.documents);
+      setLoadedDocuments(data.documents || []);
 
       const chunkedResponse = await fetch(`${apiBaseUrl}/documents?type=chunked`);
       if (!chunkedResponse.ok) {
         throw new Error(`HTTP error! status: ${chunkedResponse.status}`);
       }
       const chunkedData = await chunkedResponse.json();
-      console.log('Chunked documents response:', chunkedData);
-      
-      if (!chunkedData.documents || !Array.isArray(chunkedData.documents)) {
-        console.error('Invalid chunked documents data:', chunkedData);
-        return;
-      }
-
-      const chunkedDocsWithDetails = await Promise.all(
-        chunkedData.documents.map(async (doc) => {
-          try {
-            const detailResponse = await fetch(`${apiBaseUrl}/documents/${doc.name}?type=chunked`);
-            if (!detailResponse.ok) {
-              console.error(`Error fetching details for ${doc.name}:`, detailResponse.status);
-              return doc;
-            }
-            const detailData = await detailResponse.json();
-            console.log(`Details for ${doc.name}:`, detailData);
-            
-            return {
-              ...doc,
-              total_pages: detailData.total_pages,
-              total_chunks: detailData.total_chunks,
-              chunking_method: detailData.chunking_method,
-              timestamp: detailData.timestamp
-            };
-          } catch (error) {
-            console.error(`Error processing document ${doc.name}:`, error);
-            return doc;
-          }
-        })
-      );
-      
-      console.log('Final chunked documents:', chunkedDocsWithDetails);
-      setChunkedDocuments(chunkedDocsWithDetails);
+      setChunkedDocuments(chunkedData.documents || []);
     } catch (error) {
       console.error('Error fetching documents:', error);
       setProcessingStatus(`Error fetching documents: ${error.message}`);
@@ -118,9 +85,9 @@ const ChunkFile = () => {
     }
   };
 
-  const handleDeleteDocument = async (docName) => {
+  const handleDeleteDocument = async (docId) => {
     try {
-      const response = await fetch(`${apiBaseUrl}/documents/${docName}?type=chunked`, {
+      const response = await fetch(`${apiBaseUrl}/documents/${encodeURIComponent(docId)}?type=chunked`, {
         method: 'DELETE',
       });
 
@@ -130,7 +97,7 @@ const ChunkFile = () => {
 
       setProcessingStatus('Document deleted successfully');
       fetchLoadedDocuments();
-      if (selectedDoc === docName) {
+      if (selectedDoc === docId) {
         setSelectedDoc('');
         setChunks(null);
       }
@@ -140,9 +107,9 @@ const ChunkFile = () => {
     }
   };
 
-  const handleViewDocument = async (docName) => {
+  const handleViewDocument = async (docId) => {
     try {
-      const response = await fetch(`${apiBaseUrl}/documents/${docName}?type=chunked`);
+      const response = await fetch(`${apiBaseUrl}/documents/${encodeURIComponent(docId)}?type=chunked`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -221,26 +188,26 @@ const ChunkFile = () => {
             <div className="space-y-4 w-full">
               {chunkedDocuments.length > 0 ? (
                 chunkedDocuments.map((doc) => (
-                  <div key={doc.name} className="p-4 border rounded-lg bg-gray-50 w-full">
+                  <div key={doc.id} className="p-4 border rounded-lg bg-gray-50 w-full">
                     <div className="flex justify-between items-start w-full">
                       <div className="flex-grow">
                         <h4 className="font-medium text-lg">{doc.name}</h4>
                         <div className="text-sm text-gray-600 mt-1">
-                          <p>Pages: {doc.total_pages || 'N/A'}</p>
-                          <p>Chunks: {doc.total_chunks || 'N/A'}</p>
-                          <p>Chunking Method: {doc.chunking_method || 'N/A'}</p>
-                          <p>Processing Date: {doc.timestamp ? new Date(doc.timestamp).toLocaleString() : 'N/A'}</p>
+                          <p>Pages: {doc.metadata?.total_pages || 'N/A'}</p>
+                          <p>Chunks: {doc.metadata?.total_chunks || 'N/A'}</p>
+                          <p>Chunking Method: {doc.metadata?.chunking_method || 'N/A'}</p>
+                          <p>Processing Date: {doc.metadata?.timestamp ? new Date(doc.metadata.timestamp).toLocaleString() : 'N/A'}</p>
                         </div>
                       </div>
                       <div className="flex space-x-2 ml-4">
                         <button
-                          onClick={() => handleViewDocument(doc.name)}
+                          onClick={() => handleViewDocument(doc.id)}
                           className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
                         >
                           View
                         </button>
                         <button
-                          onClick={() => handleDeleteDocument(doc.name)}
+                          onClick={() => handleDeleteDocument(doc.id)}
                           className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
                         >
                           Delete
@@ -280,7 +247,7 @@ const ChunkFile = () => {
               >
                 <option value="">Choose a document...</option>
                 {loadedDocuments.map((doc) => (
-                  <option key={doc.name} value={doc.name}>
+                  <option key={doc.id} value={doc.id}>
                     {doc.name}
                   </option>
                 ))}

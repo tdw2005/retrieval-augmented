@@ -9,6 +9,8 @@ class VectorDBProvider(str, Enum):
 # 可以在这里添加其他配置相关的内容
 MILVUS_CONFIG = {
     "uri": "myrag",
+    "endpoint": "http://localhost:19530",
+    "token": "root:Milvus",
     "index_types": {
         "flat": "FLAT",
         "ivf_flat": "IVF_FLAT",

@@ -30,7 +30,7 @@ const LoadFile = () => {
     try {
       const response = await fetch(`${apiBaseUrl}/documents?type=loaded`);
       const data = await response.json();
-      setDocuments(data.documents);
+      setDocuments(data.documents || []);
     } catch (error) {
       console.error('Error fetching documents:', error);
     }
@@ -77,9 +77,9 @@ const LoadFile = () => {
     }
   };
 
-  const handleDeleteDocument = async (docName) => {
+  const handleDeleteDocument = async (docId) => {
     try {
-      const response = await fetch(`${apiBaseUrl}/documents/${docName}`, {
+      const response = await fetch(`${apiBaseUrl}/documents/${encodeURIComponent(docId)}`, {
         method: 'DELETE',
       });
 
@@ -89,7 +89,7 @@ const LoadFile = () => {
 
       setStatus('Document deleted successfully');
       fetchDocuments();
-      if (selectedDoc?.name === docName) {
+      if (selectedDoc?.id === docId) {
         setSelectedDoc(null);
         setLoadedContent(null);
       }
@@ -102,7 +102,7 @@ const LoadFile = () => {
   const handleViewDocument = async (doc) => {
     try {
       setStatus('Loading document...');
-      const response = await fetch(`${apiBaseUrl}/documents/${doc.name}.json`);
+      const response = await fetch(`${apiBaseUrl}/documents/${encodeURIComponent(doc.id)}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -185,7 +185,7 @@ const LoadFile = () => {
             <h3 className="text-xl font-semibold mb-4">导入文档集：</h3>
             <div className="space-y-4">
               {documents.map((doc) => (
-                <div key={doc.name} className="p-4 border rounded-lg bg-gray-50">
+                <div key={doc.id} className="p-4 border rounded-lg bg-gray-50">
                   <div className="flex justify-between items-start">
                     <div>
                       <h4 className="font-medium text-lg">{doc.name}</h4>
@@ -206,7 +206,7 @@ const LoadFile = () => {
                         浏览
                       </button>
                       <button
-                        onClick={() => handleDeleteDocument(doc.name)}
+                        onClick={() => handleDeleteDocument(doc.id)}
                         className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
                       >
                         删除
